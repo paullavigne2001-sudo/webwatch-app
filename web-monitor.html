@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebWatch — Surveillance de pages</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f5f2ee;--surface:#ffffff;--surface2:#faf8f5;--border:#e8e2d9;--border2:#d4cdc3;
+    --ink:#2a2520;--ink2:#6b625a;--ink3:#9e958c;
+    --teal:#1a857a;--teal-bg:#edf7f6;--teal-brd:#b2ddd9;
+    --red:#c0392b;--red-bg:#fdf0ee;--red-brd:#f0c4be;
+    --green:#287a45;--green-bg:#edf7f1;--green-brd:#b2ddc3;
+    --orange:#b85c00;--orange-bg:#fef6ec;
+    --shadow-sm:0 1px 3px rgba(42,37,32,.07),0 1px 2px rgba(42,37,32,.04);
+    --shadow-md:0 4px 16px rgba(42,37,32,.09),0 1px 4px rgba(42,37,32,.05);
+    --shadow-lg:0 12px 40px rgba(42,37,32,.13),0 2px 8px rgba(42,37,32,.06);
+    --radius:14px;--radius-sm:8px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.6;font-size:15px}
+  body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23c8bfb3' fill-opacity='0.18'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");pointer-events:none;opacity:.5;z-index:0}
+  .app{position:relative;z-index:1;max-width:780px;margin:0 auto;padding:40px 20px 64px}
+
+  /* ── Setup modal ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(42,37,32,.5);z-index:100;display:grid;place-items:center;padding:20px;backdrop-filter:blur(4px)}
+  .modal-overlay.hidden{display:none}
+  .modal{background:var(--surface);border-radius:var(--radius);padding:28px;max-width:480px;width:100%;box-shadow:var(--shadow-lg)}
+  .modal h2{font-family:'DM Serif Display',serif;font-size:1.4rem;margin-bottom:6px}
+  .modal p{font-size:.85rem;color:var(--ink2);margin-bottom:20px;line-height:1.6}
+  .modal label{display:block;font-size:.75rem;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+  .modal input{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:.9rem;padding:10px 14px;outline:none;transition:border-color .2s,box-shadow .2s;margin-bottom:16px}
+  .modal input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(26,133,122,.12)}
+  .modal-hint{font-size:.75rem;color:var(--ink3);margin-top:-10px;margin-bottom:16px}
+  .modal-hint a{color:var(--teal)}
+  .gh-status{font-size:.8rem;padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:16px;display:none}
+  .gh-status.ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-brd)}
+  .gh-status.err{background:var(--red-bg);color:var(--red);border:1px solid var(--red-brd)}
+
+  /* ── Token badge in header ── */
+  .token-badge{display:flex;align-items:center;gap:6px;background:var(--teal-bg);border:1px solid var(--teal-brd);padding:5px 12px;border-radius:99px;font-size:.75rem;font-weight:600;color:var(--teal);margin-top:6px;width:fit-content;cursor:pointer}
+  .token-badge:hover{background:#d9f0ee}
+  .sync-badge{display:flex;align-items:center;gap:6px;background:var(--orange-bg);border:1px solid #f5c87a;padding:5px 12px;border-radius:99px;font-size:.75rem;font-weight:600;color:var(--orange);margin-top:6px;width:fit-content;display:none}
+
+  header{display:flex;align-items:flex-start;gap:16px;margin-bottom:36px;animation:fadeUp .5s ease both}
+  .logo-wrap{width:52px;height:52px;background:var(--teal);border-radius:14px;display:grid;place-items:center;font-size:22px;box-shadow:0 4px 14px rgba(26,133,122,.35);flex-shrink:0;margin-top:2px}
+  .header-text{flex:1}
+  h1{font-family:'DM Serif Display',serif;font-size:2rem;color:var(--ink);line-height:1.1;letter-spacing:-.3px}
+  h1 em{font-style:italic;color:var(--teal)}
+  .tagline{font-size:.85rem;color:var(--ink3);margin-top:3px}
+  .live-pill{display:flex;align-items:center;gap:6px;background:var(--green-bg);border:1px solid var(--green-brd);padding:5px 12px;border-radius:99px;font-size:.75rem;font-weight:600;color:var(--green);margin-top:6px;width:fit-content}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:livePulse 2s ease-in-out infinite}
+  @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
+  .schedule-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px;box-shadow:var(--shadow-sm);animation:fadeUp .5s .05s ease both}
+  .schedule-icon{width:38px;height:38px;background:var(--orange-bg);border-radius:10px;display:grid;place-items:center;font-size:18px;flex-shrink:0}
+  .schedule-text{flex:1;min-width:0}
+  .schedule-text strong{font-weight:600}
+  .schedule-times{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+  .time-pill{background:var(--teal-bg);border:1px solid var(--teal-brd);color:var(--teal);font-size:.78rem;font-weight:600;padding:2px 10px;border-radius:99px}
+  .next-check-text{font-size:.78rem;color:var(--ink3);margin-top:3px}
+  .next-check-text span{color:var(--ink2);font-weight:500}
+  .sched-actions{display:flex;gap:8px;flex-shrink:0}
+
+  .add-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:28px;box-shadow:var(--shadow-sm);animation:fadeUp .5s .1s ease both}
+  .add-card label{display:block;font-size:.78rem;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
+  .input-row{display:flex;gap:10px;flex-wrap:wrap}
+  .input-wrap{flex:1;min-width:180px;position:relative}
+  .input-wrap .input-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none}
+  input[type=text]{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:.9rem;padding:10px 14px 10px 36px;outline:none;transition:border-color .2s,box-shadow .2s}
+  input[type=text]:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(26,133,122,.12)}
+  input[type=text]::placeholder{color:var(--ink3)}
+
+  .btn{font-family:'DM Sans',sans-serif;font-weight:600;font-size:.85rem;padding:10px 20px;border:none;border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;white-space:nowrap}
+  .btn-primary{background:var(--teal);color:#fff;box-shadow:0 2px 8px rgba(26,133,122,.3)}
+  .btn-primary:hover{background:#167068;transform:translateY(-1px);box-shadow:0 4px 12px rgba(26,133,122,.35)}
+  .btn-ghost{background:transparent;color:var(--ink2);border:1.5px solid var(--border2)}
+  .btn-ghost:hover{background:var(--surface2);border-color:var(--ink3)}
+  .btn-sm{padding:6px 12px;font-size:.78rem;border-radius:7px}
+  .btn-icon{width:32px;height:32px;padding:0;display:grid;place-items:center;border-radius:8px;font-size:14px}
+  .btn-danger{background:var(--red-bg);color:var(--red);border:1.5px solid var(--red-brd)}
+  .btn-danger:hover{background:#fce0dc}
+  .btn-teal-ghost{background:var(--teal-bg);color:var(--teal);border:1.5px solid var(--teal-brd)}
+  .btn-teal-ghost:hover{background:#d9f0ee}
+  .btn-full{width:100%;justify-content:center}
+
+  .section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;animation:fadeUp .5s .15s ease both}
+  .section-head h2{font-family:'DM Serif Display',serif;font-size:1.15rem;color:var(--ink)}
+  .count-chip{background:var(--teal-bg);border:1px solid var(--teal-brd);color:var(--teal);font-size:.72rem;font-weight:600;padding:1px 9px;border-radius:99px}
+  .flex-grow{flex:1}
+
+  .sites-list{display:flex;flex-direction:column;gap:10px;margin-bottom:32px}
+  .site-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;transition:box-shadow .2s,border-color .2s,transform .15s;animation:fadeUp .4s ease both}
+  .site-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .site-card.is-changed{border-color:var(--red-brd)}
+  .card-header{display:flex;align-items:center;gap:14px;padding:14px 16px;cursor:pointer;user-select:none}
+  .status-orb{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex-shrink:0}
+  .orb-ok{background:var(--green-bg)}.orb-changed{background:var(--red-bg)}
+  .orb-pending{background:var(--surface2);border:1px solid var(--border)}.orb-checking{background:var(--orange-bg)}
+  .site-info{flex:1;min-width:0}
+  .site-name{font-weight:600;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .site-url{font-size:.75rem;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .card-right{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+  .status-badge{font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:99px}
+  .badge-ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-brd)}
+  .badge-changed{background:var(--red-bg);color:var(--red);border:1px solid var(--red-brd)}
+  .badge-pending{background:var(--surface2);color:var(--ink3);border:1px solid var(--border)}
+  .badge-checking{background:var(--orange-bg);color:var(--orange);border:1px solid #f5c87a}
+  .last-check-txt{font-size:.7rem;color:var(--ink3)}
+  .card-actions{display:flex;gap:6px}
+
+  .diff-panel{border-top:1px solid var(--border);padding:16px;display:none;background:var(--surface2)}
+  .diff-panel.open{display:block}
+  .diff-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .diff-title{font-weight:600;font-size:.85rem;color:var(--ink2);flex:1}
+  .diff-stats{display:flex;gap:8px}
+  .stat-pill{font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:99px}
+  .stat-add{background:var(--green-bg);color:var(--green);border:1px solid var(--green-brd)}
+  .stat-remove{background:var(--red-bg);color:var(--red);border:1px solid var(--red-brd)}
+  .diff-box{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;max-height:380px;overflow-y:auto;background:var(--surface)}
+  .diff-box::-webkit-scrollbar{width:5px}
+  .diff-box::-webkit-scrollbar-track{background:var(--surface2)}
+  .diff-box::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+  .diff-line{display:flex;gap:10px;padding:5px 14px;font-size:.78rem;line-height:1.5}
+  .diff-line.add{background:#f0faf4;border-left:3px solid #6bca96}
+  .diff-line.remove{background:#fdf3f2;border-left:3px solid #f0948a}
+  .diff-line.ctx{color:var(--ink3);border-left:3px solid transparent}
+  .diff-line.sep{background:var(--surface2);color:var(--ink3);border-left:3px solid var(--border);font-size:.7rem;padding:3px 14px}
+  .diff-sign{width:14px;flex-shrink:0;font-weight:700}
+  .diff-sign.plus{color:var(--green)}.diff-sign.minus{color:var(--red)}
+  .diff-text{flex:1;word-break:break-word}
+
+  .empty-state{background:var(--surface);border:1.5px dashed var(--border2);border-radius:var(--radius);text-align:center;padding:52px 24px;color:var(--ink3);animation:fadeUp .4s .2s ease both}
+  .empty-icon{font-size:2.8rem;margin-bottom:12px}
+  .empty-state p{font-size:.9rem;max-width:280px;margin:0 auto;line-height:1.7}
+
+  .log-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;animation:fadeUp .5s .25s ease both}
+  .log-item{display:flex;align-items:flex-start;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border);font-size:.82rem;transition:background .15s}
+  .log-item:last-child{border-bottom:none}
+  .log-item:hover{background:var(--surface2)}
+  .log-ico{font-size:1rem;flex-shrink:0;margin-top:1px}
+  .log-msg{flex:1;color:var(--ink2);line-height:1.5}
+  .log-msg strong{color:var(--ink)}
+  .log-time{font-size:.7rem;color:var(--ink3);flex-shrink:0;margin-top:2px}
+
+  #toast{position:fixed;bottom:28px;right:28px;z-index:9999;background:var(--ink);color:#fff;padding:12px 18px;border-radius:var(--radius-sm);font-size:.85rem;font-weight:500;box-shadow:var(--shadow-lg);transform:translateY(24px) scale(.97);opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);max-width:320px;pointer-events:none}
+  #toast.show{transform:translateY(0) scale(1);opacity:1}
+  #toast.alert{background:var(--red)}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @media(max-width:580px){.input-row{flex-direction:column}.sched-actions{width:100%}}
+</style>
+</head>
+<body>
+
+<!-- ── Setup Modal ── -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal">
+    <h2>👁 Connexion WebWatch</h2>
+    <p>Pour synchroniser la liste des pages avec GitHub, saisis ton token d'accès personnel. Il sera stocké dans ce navigateur et ne sera jamais partagé.</p>
+    <label>Token GitHub (ghp_...)</label>
+    <input type="text" id="tokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+    <div class="modal-hint">
+      <a href="https://github.com/settings/tokens/new?description=WebWatch&scopes=repo" target="_blank">→ Créer un token sur GitHub</a>
+      (coche uniquement la permission <strong>repo</strong>)
+    </div>
+    <label>Propriétaire du dépôt (ton username GitHub)</label>
+    <input type="text" id="ownerInput" placeholder="ton-username" />
+    <label>Nom du dépôt privé</label>
+    <input type="text" id="repoInput" placeholder="WebWatch" />
+    <div class="gh-status" id="ghStatus"></div>
+    <button class="btn btn-primary btn-full" onclick="saveToken()">Connecter →</button>
+  </div>
+</div>
+
+<div class="app">
+  <header>
+    <div class="logo-wrap">👁</div>
+    <div class="header-text">
+      <h1>Web<em>Watch</em></h1>
+      <div class="tagline">Surveillance automatique · 9 vérifications par jour</div>
+      <div class="live-pill"><div class="live-dot"></div> Actif</div>
+      <div class="token-badge" id="tokenBadge" onclick="document.getElementById('setupModal').classList.remove('hidden')" style="display:none">
+        🔗 Connecté à GitHub · <span id="repoLabel"></span>
+      </div>
+      <div class="sync-badge" id="syncBadge">⏳ Synchronisation…</div>
+    </div>
+  </header>
+
+  <div class="schedule-card">
+    <div class="schedule-icon">🕐</div>
+    <div class="schedule-text">
+      <strong>Vérifications planifiées</strong>
+      <div class="schedule-times" id="timePills"></div>
+      <div class="next-check-text">Prochaine : <span id="nextCheckTime">—</span></div>
+    </div>
+    <div class="sched-actions">
+      <button class="btn btn-ghost btn-sm" onclick="checkAllNow()">↻ Vérifier maintenant</button>
+      <button class="btn btn-ghost btn-sm" onclick="showScheduleEdit()">⚙ Horaires</button>
+    </div>
+  </div>
+
+  <div class="add-card">
+    <label>Ajouter une page à surveiller</label>
+    <div class="input-row">
+      <div class="input-wrap" style="flex:2">
+        <span class="input-icon">🔗</span>
+        <input type="text" id="urlInput" placeholder="https://exemple.com/page-a-surveiller" />
+      </div>
+      <div class="input-wrap" style="flex:1">
+        <span class="input-icon">🏷</span>
+        <input type="text" id="nameInput" placeholder="Nom (optionnel)" />
+      </div>
+      <button class="btn btn-primary" onclick="addSite()">+ Ajouter</button>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Pages surveillées</h2>
+    <span class="count-chip" id="countBadge">0</span>
+    <div class="flex-grow"></div>
+  </div>
+  <div class="sites-list" id="sitesList">
+    <div class="empty-state"><div class="empty-icon">🔍</div><p>Aucune page ajoutée encore.<br>Collez une URL ci-dessus pour commencer.</p></div>
+  </div>
+
+  <div class="section-head" style="animation-delay:.2s"><h2>Journal d'activité</h2></div>
+  <div class="log-card">
+    <div id="logList">
+      <div class="log-item"><span class="log-ico">💡</span><span class="log-msg">Bienvenue dans WebWatch.</span><span class="log-time">maintenant</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let sites      = JSON.parse(localStorage.getItem('ww_sites') || '[]');
+let logs       = JSON.parse(localStorage.getItem('ww_logs')  || '[]');
+let times      = JSON.parse(localStorage.getItem('ww_times') || '["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00"]');
+let expandedId = null;
+let ghToken    = localStorage.getItem('ww_token')  || '';
+let ghOwner    = localStorage.getItem('ww_owner')  || '';
+let ghRepo     = localStorage.getItem('ww_repo')   || '';
+let sitesSha   = ''; // SHA du fichier sites.json sur GitHub (nécessaire pour le PUT)
+
+// Proxies CORS en cascade
+const PROXIES = [
+  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+];
+
+// ── GitHub API ────────────────────────────────────────────────────────────────
+function ghHeaders() {
+  return { 'Authorization': `Bearer ${ghToken}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' };
+}
+
+async function ghGetSites() {
+  const res = await fetch(`https://api.github.com/repos/${ghOwner}/${ghRepo}/contents/sites.json`, { headers: ghHeaders() });
+  if (!res.ok) throw new Error(`GitHub ${res.status}`);
+  const data = await res.json();
+  sitesSha = data.sha;
+  const content = JSON.parse(atob(data.content.replace(/\n/g,'')));
+  return content; // [{name, url}, ...]
+}
+
+async function ghPutSites(sitesArray) {
+  // Only send name+url to GitHub (no runtime state)
+  const clean = sitesArray.map(s => ({ name: s.name, url: s.url }));
+  const body = JSON.stringify({
+    message: 'chore: mise a jour sites.json via WebWatch',
+    content: btoa(unescape(encodeURIComponent(JSON.stringify(clean, null, 2)))),
+    sha: sitesSha
+  });
+  const res = await fetch(`https://api.github.com/repos/${ghOwner}/${ghRepo}/contents/sites.json`, {
+    method: 'PUT', headers: ghHeaders(), body
+  });
+  if (!res.ok) throw new Error(`GitHub PUT ${res.status}`);
+  const data = await res.json();
+  sitesSha = data.content.sha;
+}
+
+async function syncFromGitHub() {
+  if (!ghToken) return;
+  showSync(true);
+  try {
+    const ghSites = await ghGetSites();
+    // Merge: keep local runtime state, add new from GH, remove deleted from GH
+    const ghUrls = ghSites.map(s => s.url);
+    // Remove sites no longer in GH
+    sites = sites.filter(s => ghUrls.includes(s.url));
+    // Add sites from GH not yet local
+    ghSites.forEach(gs => {
+      if (!sites.find(s => s.url === gs.url)) {
+        sites.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,4), url: gs.url, name: gs.name, status:'pending', lastCheck:null, lastHash:null, prevText:null, diff:null });
+      }
+    });
+    save(); renderSites();
+    addLog('🔗', 'Synchronisation GitHub effectuée.');
+    renderLog();
+  } catch(e) {
+    addLog('⚠️', `Erreur sync GitHub : ${e.message}`); renderLog();
+  }
+  showSync(false);
+}
+
+async function pushToGitHub() {
+  if (!ghToken) return;
+  showSync(true);
+  try {
+    // Re-fetch SHA in case it changed
+    await ghGetSites();
+    await ghPutSites(sites);
+    addLog('☁️', 'Liste sauvegardée sur GitHub.'); renderLog();
+  } catch(e) {
+    addLog('⚠️', `Erreur push GitHub : ${e.message}`); renderLog();
+  }
+  showSync(false);
+}
+
+function showSync(on) {
+  document.getElementById('syncBadge').style.display = on ? 'flex' : 'none';
+}
+
+// ── Token setup ───────────────────────────────────────────────────────────────
+async function saveToken() {
+  const token = document.getElementById('tokenInput').value.trim();
+  const owner = document.getElementById('ownerInput').value.trim();
+  const repo  = document.getElementById('repoInput').value.trim();
+  const st    = document.getElementById('ghStatus');
+  if (!token || !owner || !repo) { showGhStatus('Tous les champs sont requis.', false); return; }
+
+  // Test connection
+  st.style.display = 'block'; st.className = 'gh-status'; st.textContent = '⏳ Vérification…';
+  try {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/sites.json`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+    });
+    if (!res.ok) throw new Error(`Erreur ${res.status} — vérifie le token, l'owner et le nom du dépôt.`);
+    ghToken = token; ghOwner = owner; ghRepo = repo;
+    localStorage.setItem('ww_token', token);
+    localStorage.setItem('ww_owner', owner);
+    localStorage.setItem('ww_repo',  repo);
+    showGhStatus('✅ Connexion réussie !', true);
+    setTimeout(() => {
+      document.getElementById('setupModal').classList.add('hidden');
+      initTokenUI();
+      syncFromGitHub();
+    }, 800);
+  } catch(e) {
+    showGhStatus('❌ ' + e.message, false);
+  }
+}
+
+function showGhStatus(msg, ok) {
+  const el = document.getElementById('ghStatus');
+  el.style.display = 'block';
+  el.className = 'gh-status ' + (ok ? 'ok' : 'err');
+  el.textContent = msg;
+}
+
+function initTokenUI() {
+  if (!ghToken) {
+    document.getElementById('setupModal').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('setupModal').classList.add('hidden');
+  const badge = document.getElementById('tokenBadge');
+  badge.style.display = 'flex';
+  document.getElementById('repoLabel').textContent = `${ghOwner}/${ghRepo}`;
+  // Pre-fill modal in case user wants to change
+  document.getElementById('tokenInput').value = ghToken;
+  document.getElementById('ownerInput').value = ghOwner;
+  document.getElementById('repoInput').value  = ghRepo;
+}
+
+// ── Page fetch / diff ─────────────────────────────────────────────────────────
+async function fetchPage(url) {
+  for (const makeUrl of PROXIES) {
+    try {
+      const res = await fetch(makeUrl(url), {signal: AbortSignal.timeout(12000)});
+      if (!res.ok) continue;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const j = await res.json();
+        return j.contents || JSON.stringify(j);
+      }
+      return await res.text();
+    } catch(e) { continue; }
+  }
+  throw new Error('Tous les proxies ont échoué pour cette URL');
+}
+async function hashContent(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function extractText(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ');
+  return (div.textContent||'').replace(/\s+/g,' ').trim();
+}
+function diffTexts(oldTxt, newTxt) {
+  const split = t => t.split(/[.!?]\s+/).filter(s=>s.trim().length>20);
+  const oSet = new Set(split(oldTxt)), nSet = new Set(split(newTxt));
+  return { added: split(newTxt).filter(l=>!oSet.has(l)), removed: split(oldTxt).filter(l=>!nSet.has(l)) };
+}
+function buildDiffHTML(diff) {
+  const r=diff.removed.slice(0,50), a=diff.added.slice(0,50);
+  if (!r.length&&!a.length) return '<div class="diff-line ctx"><span class="diff-text" style="font-style:italic">Contenu identique ou changement structurel.</span></div>';
+  let h='';
+  r.forEach(l=>{h+=`<div class="diff-line remove"><span class="diff-sign minus">−</span><span class="diff-text">${esc(l.trim().slice(0,220))}</span></div>`;});
+  if (r.length&&a.length) h+=`<div class="diff-line sep"><span class="diff-text">— nouvelles lignes —</span></div>`;
+  a.forEach(l=>{h+=`<div class="diff-line add"><span class="diff-sign plus">+</span><span class="diff-text">${esc(l.trim().slice(0,220))}</span></div>`;});
+  return h;
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ── Check ─────────────────────────────────────────────────────────────────────
+async function checkSite(id) {
+  const site=sites.find(s=>s.id===id); if(!site)return;
+  site.status='checking'; renderSites();
+  try {
+    const html=await fetchPage(site.url), text=extractText(html), hash=await hashContent(text);
+    const prev=site.lastHash;
+    site.lastHash=hash; site.lastCheck=Date.now();
+    if (!prev) { site.status='ok'; addLog('📸',`Snapshot initial enregistré pour <strong>${site.name}</strong>.`); toast(`📸 ${site.name}`,false); }
+    else if (prev!==hash) { site.diff=diffTexts(site.prevText||'',text); site.status='changed'; addLog('🔴',`<strong>${site.name}</strong> — modification détectée !`); toast(`Modification : ${site.name}`,true); notifyDesktop(site.name); }
+    else { site.status='ok'; addLog('✅',`Aucun changement sur <strong>${site.name}</strong>.`); }
+    site.prevText=text;
+  } catch(e) { site.status='error'; site.lastCheck=Date.now(); addLog('❌',`Erreur sur <strong>${site.name}</strong> : ${e.message}`); }
+  save(); renderSites(); renderLog();
+}
+async function checkAllNow() {
+  if (!sites.length){toast('Aucune page à vérifier.',false);return;}
+  addLog('🔄','Vérification manuelle…'); renderLog();
+  for (const s of sites) await checkSite(s.id);
+  toast('✓ Terminée.',false);
+}
+function notifyDesktop(name) {
+  if (!('Notification'in window))return;
+  if (Notification.permission==='granted') new Notification('WebWatch',{body:`"${name}" a changé.`});
+  else if (Notification.permission!=='denied') Notification.requestPermission().then(p=>{if(p==='granted')notifyDesktop(name);});
+}
+
+// ── Schedule ──────────────────────────────────────────────────────────────────
+function updateScheduleDisplay() {
+  document.getElementById('timePills').innerHTML=times.map(t=>`<span class="time-pill">${t}</span>`).join('');
+  document.getElementById('nextCheckTime').textContent=getNextCheckStr();
+}
+function getNextCheckStr() {
+  const now=new Date();
+  const future=times.map(t=>{const[h,m]=t.split(':').map(Number),d=new Date();d.setHours(h,m,0,0);return d;}).filter(d=>d>now).sort((a,b)=>a-b);
+  if (future.length){const diff=Math.round((future[0]-now)/60000),h=Math.floor(diff/60),m=diff%60;return future[0].toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+(h>0?` · dans ${h}h${String(m).padStart(2,'0')}m`:`· dans ${m} min`);}
+  const[h,m]=times[0].split(':').map(Number),d=new Date();d.setDate(d.getDate()+1);d.setHours(h,m,0,0);
+  return 'Demain '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+function checkSchedule() {
+  const hhmm=new Date().toTimeString().slice(0,5);
+  if (times.includes(hhmm)&&new Date().getSeconds()<35){checkAllNow();addLog('⏰',`Vérif auto (${hhmm})`);renderLog();}
+  document.getElementById('nextCheckTime').textContent=getNextCheckStr();
+}
+function showScheduleEdit() {
+  const start=prompt('Heure de début (HH:MM)',times[0]); if(!start||!/^\d{2}:\d{2}$/.test(start))return;
+  const nb=parseInt(prompt('Nombre de vérifications/jour',times.length)); if(!nb||nb<1||nb>24)return;
+  const[sh,sm]=start.split(':').map(Number);
+  times=Array.from({length:nb},(_,i)=>`${String((sh+i)%24).padStart(2,'0')}:${String(sm).padStart(2,'0')}`);
+  localStorage.setItem('ww_times',JSON.stringify(times));
+  updateScheduleDisplay(); toast(`⏰ ${nb} vérifications/jour à partir de ${start}`,false);
+}
+
+// ── Add / Remove ──────────────────────────────────────────────────────────────
+async function addSite() {
+  let url=document.getElementById('urlInput').value.trim();
+  const name=document.getElementById('nameInput').value.trim();
+  if (!url){toast('Veuillez saisir une URL.',false);return;}
+  if (!url.startsWith('http')) url='https://'+url;
+  if (sites.find(s=>s.url===url)){toast('URL déjà surveillée.',false);return;}
+  const hostname=(()=>{try{return new URL(url).hostname;}catch{return url;}})();
+  const id=Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  sites.push({id,url,name:name||hostname,status:'pending',lastCheck:null,lastHash:null,prevText:null,diff:null});
+  document.getElementById('urlInput').value=''; document.getElementById('nameInput').value='';
+  addLog('➕',`<strong>${name||hostname}</strong> ajoutée.`);
+  save(); renderSites(); renderLog();
+  toast(`✓ ${name||hostname} ajoutée !`,false);
+  if ('Notification'in window&&Notification.permission==='default') Notification.requestPermission();
+  if (ghToken) await pushToGitHub();
+  setTimeout(()=>checkSite(id),400);
+}
+
+async function removeSite(id) {
+  const s=sites.find(x=>x.id===id);
+  if (!confirm(`Supprimer "${s?.name}" ?`))return;
+  sites=sites.filter(x=>x.id!==id); if(expandedId===id)expandedId=null;
+  addLog('🗑',`<strong>${s?.name}</strong> supprimée.`);
+  save(); renderSites(); renderLog();
+  if (ghToken) await pushToGitHub();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderSites() {
+  const el=document.getElementById('sitesList');
+  document.getElementById('countBadge').textContent=sites.length;
+  if (!sites.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><p>Aucune page ajoutée encore.<br>Collez une URL ci-dessus pour commencer.</p></div>`;return;}
+  const sm={ok:{o:'orb-ok',e:'✅',b:'badge-ok',l:'Inchangée'},changed:{o:'orb-changed',e:'🔴',b:'badge-changed',l:'Modifiée !'},checking:{o:'orb-checking',e:'🔄',b:'badge-checking',l:'Vérification…'},error:{o:'orb-pending',e:'⚠️',b:'badge-pending',l:'Erreur'},pending:{o:'orb-pending',e:'⬜',b:'badge-pending',l:'En attente'}};
+  el.innerHTML=sites.map((s,i)=>{
+    const st=sm[s.status]||sm.pending;
+    const lc=s.lastCheck?new Date(s.lastCheck).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+    const isOpen=expandedId===s.id&&s.status==='changed';
+    let dh='';
+    if (isOpen&&s.diff){const a=s.diff.added.length,r=s.diff.removed.length;dh=`<div class="diff-panel open"><div class="diff-header"><span class="diff-title">📋 Modifications détectées</span><div class="diff-stats"><span class="stat-pill stat-add">+${a} ajout${a>1?'s':''}</span><span class="stat-pill stat-remove">−${r} suppression${r>1?'s':''}</span></div></div><div class="diff-box">${buildDiffHTML(s.diff)}</div></div>`;}
+    return `<div class="site-card ${s.status==='changed'?'is-changed':''}" style="animation-delay:${i*.04}s"><div class="card-header" onclick="toggleExpand('${s.id}')"><div class="status-orb ${st.o}">${st.e}</div><div class="site-info"><div class="site-name">${esc(s.name)}</div><div class="site-url">${esc(s.url)}</div></div><div class="card-right"><span class="status-badge ${st.b}">${st.l}</span><span class="last-check-txt">Vérifié ${lc}</span><div class="card-actions"><button class="btn btn-teal-ghost btn-sm btn-icon" title="Vérifier" onclick="event.stopPropagation();checkSite('${s.id}')">↻</button><button class="btn btn-danger btn-sm btn-icon" title="Supprimer" onclick="event.stopPropagation();removeSite('${s.id}')">✕</button></div></div></div>${dh}</div>`;
+  }).join('');
+}
+function toggleExpand(id){const s=sites.find(x=>x.id===id);if(!s||s.status!=='changed')return;expandedId=expandedId===id?null:id;renderSites();}
+function addLog(icon,msg){const t=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});logs.unshift({icon,msg,time:t});if(logs.length>80)logs.pop();}
+function renderLog(){
+  const el=document.getElementById('logList');
+  if (!logs.length){el.innerHTML='<div class="log-item"><span class="log-ico">💡</span><span class="log-msg">Aucune activité.</span><span class="log-time">—</span></div>';return;}
+  el.innerHTML=logs.slice(0,30).map(l=>`<div class="log-item"><span class="log-ico">${l.icon}</span><span class="log-msg">${l.msg}</span><span class="log-time">${l.time}</span></div>`).join('');
+}
+function save(){localStorage.setItem('ww_sites',JSON.stringify(sites));localStorage.setItem('ww_logs',JSON.stringify(logs));}
+let toastTimer;
+function toast(msg,isAlert){const el=document.getElementById('toast');el.textContent=msg;el.className='show'+(isAlert?' alert':'');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.className='',4200);}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+initTokenUI();
+updateScheduleDisplay(); renderSites(); renderLog();
+if (ghToken) syncFromGitHub();
+setInterval(checkSchedule,30000);
+setInterval(()=>{document.getElementById('nextCheckTime').textContent=getNextCheckStr();},60000);
+</script>
+</body>
+</html>
