@@ -151,6 +151,11 @@
 
   @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
   @media(max-width:580px){.input-row{flex-direction:column}.sched-actions{width:100%}}
+  .test-result{display:none;margin-top:12px;padding:10px 14px;border-radius:var(--radius-sm);font-size:.82rem;line-height:1.5}
+  .test-result.ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-brd)}
+  .test-result.warn{background:var(--orange-bg);color:var(--orange);border:1px solid #f5c87a}
+  .test-result.fail{background:var(--red-bg);color:var(--red);border:1px solid var(--red-brd)}
+  .test-result.testing{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-brd)}
 </style>
 </head>
 <body>
@@ -217,8 +222,10 @@
         <span class="input-icon">📧</span>
         <input type="text" id="emailInput" placeholder="Email alerte (optionnel)" />
       </div>
+      <button class="btn btn-ghost" onclick="testUrl()">🔍 Tester</button>
       <button class="btn btn-primary" onclick="addSite()">+ Ajouter</button>
     </div>
+    <div class="test-result" id="testResult"></div>
   </div>
 
   <div class="section-head">
@@ -477,6 +484,33 @@ function showScheduleEdit() {
 }
 
 // ── Add / Remove ──────────────────────────────────────────────────────────────
+async function testUrl() {
+  let url = document.getElementById('urlInput').value.trim();
+  if (!url) { showTestResult('warn', '⚠️ Saisis une URL d'abord.'); return; }
+  if (!url.startsWith('http')) url = 'https://' + url;
+  showTestResult('testing', '⏳ Test en cours…');
+  try {
+    const html = await fetchPage(url);
+    const text = extractText(html);
+    const chars = text.length;
+    if (chars < 100) {
+      showTestResult('warn', `🟡 Page accessible mais peu de texte extrait (${chars} caractères). Probablement générée en JavaScript — la surveillance peut être peu fiable.`);
+    } else if (chars < 500) {
+      showTestResult('warn', `🟡 Contenu partiel détecté (${chars} caractères). La surveillance fonctionnera mais pourrait manquer certains changements.`);
+    } else {
+      showTestResult('ok', `🟢 Page surveillable — ${chars.toLocaleString('fr-FR')} caractères de texte extraits. La surveillance sera fiable.`);
+    }
+  } catch(e) {
+    showTestResult('fail', `🔴 Impossible d'accéder à cette page : ${e.message}. Elle ne peut pas être surveillée.`);
+  }
+}
+function showTestResult(type, msg) {
+  const el = document.getElementById('testResult');
+  el.className = 'test-result ' + type;
+  el.style.display = 'block';
+  el.textContent = msg;
+}
+
 async function addSite() {
   let url=document.getElementById('urlInput').value.trim();
   const name=document.getElementById('nameInput').value.trim();
@@ -487,7 +521,7 @@ async function addSite() {
   const email=document.getElementById('emailInput').value.trim();
   const id=Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   sites.push({id,url,name:name||hostname,email:email||null,status:'pending',lastCheck:null,lastHash:null,prevText:null,diff:null});
-  document.getElementById('urlInput').value=''; document.getElementById('nameInput').value=''; document.getElementById('emailInput').value='';
+  document.getElementById('urlInput').value=''; document.getElementById('nameInput').value=''; document.getElementById('emailInput').value=''; const tr=document.getElementById('testResult'); tr.style.display='none';
   addLog('➕',`<strong>${name||hostname}</strong> ajoutée.`);
   save(); renderSites(); renderLog();
   toast(`✓ ${name||hostname} ajoutée !`,false);
